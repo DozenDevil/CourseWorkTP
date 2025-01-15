@@ -3,23 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Classifier</title>
+    <title>CourseWorkTP</title>
 </head>
 <body>
-    <h1>Список изображений</h1>
-    <ul>
-        {% for image in images %}
-        <li>{{ image.path }} — {{ image.label }}</li>
-        {% endfor %}
-    </ul>
+    <h1>Загрузите изображения</h1>
 
-    <h2>Добавить изображение</h2>
-    <form action="{{ url_for('add_image') }}" method="POST">
-        <label for="image_path">Путь к изображению:</label>
-        <input type="text" name="image_path" id="image_path" required><br>
-        <label for="label">Класс:</label>
-        <input type="text" name="label" id="label" required><br>
-        <button type="submit">Добавить</button>
+    <!-- Кнопка для загрузки CIFAR-10 -->
+    <button id="load-cifar-btn">Загрузить изображения CIFAR-10</button>
+
+    <!-- Блок для отображения состояния загрузки -->
+    <div id="loading-msg" style="display: none;">
+        Загрузка изображений...
+    </div>
+
+    <form action="{{ url_for('upload_image') }}" method="POST" enctype="multipart/form-data">
+        <input type="file" name="image" required>
+        <input type="submit" value="Upload">
     </form>
+
+    <h2>Все изображения</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Изображение</th>
+                <th>Путь к изображению</th>
+                <th>Настоящий класс</th>
+                <th>Предполагаемый класс</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for image in images %}
+            <tr>
+                <td>
+                    <img src="{{ url_for('static', filename='uploads/' + image.image_path.replace('\\', '/').split('/')[-1]) }}"
+                    alt="Image" width="100">
+                </td>
+                <td>{{ image.image_path }}</td>
+                <td>{{ image.actual_label }}</td>
+                <td>{{ image.predicted_label or 'Не классифицировано' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        document.getElementById('load-cifar-btn').addEventListener('click', function() {
+            // Показываем сообщение о загрузке
+            document.getElementById('loading-msg').style.display = 'block';
+
+            // Отправляем запрос на сервер через AJAX
+            fetch('/load_cifar10', {
+                method: 'GET',
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Скрываем сообщение о загрузке
+                document.getElementById('loading-msg').style.display = 'none';
+
+                if (data.success) {
+                    alert('Изображения CIFAR-10 загружены успешно!');
+                    // Можно обновить таблицу изображений (если хотите)
+                    location.reload();  // Перезагрузим страницу для отображения новых изображений
+                } else {
+                    alert('Произошла ошибка при загрузке изображений.');
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading-msg').style.display = 'none';
+                alert('Ошибка при загрузке изображений.');
+            });
+        });
+    </script>
 </body>
 </html>
