@@ -11,15 +11,16 @@
     <!-- Кнопка для загрузки CIFAR-10 -->
     <button id="load-cifar-btn">Загрузить изображения CIFAR-10</button>
 
+    <h2>Свои изображения</h2>
+    <form id="upload-form" action="{{ url_for('upload_image') }}" method="POST" enctype="multipart/form-data">
+        <input type="file" name="image" multiple required>
+        <input type="submit" value="Upload">
+    </form>
+
     <!-- Блок для отображения состояния загрузки -->
     <div id="loading-msg" style="display: none;">
         Загрузка изображений...
     </div>
-
-    <form action="{{ url_for('upload_image') }}" method="POST" enctype="multipart/form-data">
-        <input type="file" name="image" required>
-        <input type="submit" value="Upload">
-    </form>
 
     <h2>Все изображения</h2>
     <table border="1">
@@ -47,6 +48,7 @@
     </table>
 
     <script>
+        // Обработка загрузки CIFAR-10
         document.getElementById('load-cifar-btn').addEventListener('click', function() {
             // Показываем сообщение о загрузке
             document.getElementById('loading-msg').style.display = 'block';
@@ -66,6 +68,66 @@
                     location.reload();  // Перезагрузим страницу для отображения новых изображений
                 } else {
                     alert('Произошла ошибка при загрузке изображений.');
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading-msg').style.display = 'none';
+                alert('Ошибка при загрузке изображений.');
+            });
+        });
+
+        // Обработка загрузки изображений через форму
+        document.getElementById('upload-form').addEventListener('submit', function(event) {
+            event.preventDefault();  // Отключаем стандартное поведение формы
+
+            // Получаем форму
+            var formData = new FormData(this);
+
+            // Показываем сообщение о загрузке
+            document.getElementById('loading-msg').style.display = 'block';
+
+            // Отправляем запрос на сервер через AJAX
+            fetch('{{ url_for("upload_image") }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Скрываем сообщение о загрузке
+                document.getElementById('loading-msg').style.display = 'none';
+
+                if (data.success) {
+                    // Добавляем новые изображения на страницу
+                    data.images.forEach(function(image) {
+                        var row = document.createElement('tr');
+
+                        var imageCell = document.createElement('td');
+                        var img = document.createElement('img');
+                        img.src = '/static/uploads/' + image.image_path.split('/').pop();
+                        img.width = 100;
+                        imageCell.appendChild(img);
+
+                        var pathCell = document.createElement('td');
+                        pathCell.textContent = image.image_path;
+
+                        var actualLabelCell = document.createElement('td');
+                        actualLabelCell.textContent = image.actual_label;
+
+                        var predictedLabelCell = document.createElement('td');
+                        predictedLabelCell.textContent = image.predicted_label;
+
+                        row.appendChild(imageCell);
+                        row.appendChild(pathCell);
+                        row.appendChild(actualLabelCell);
+                        row.appendChild(predictedLabelCell);
+
+                        // Добавляем строку в таблицу
+                        document.querySelector('table tbody').appendChild(row);
+                    });
+
+                    alert('Изображения успешно загружены!');
+                } else {
+                    alert('Ошибка при загрузке изображений.');
                 }
             })
             .catch(error => {
