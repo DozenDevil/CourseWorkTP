@@ -2,10 +2,11 @@ import os
 import numpy as np
 from PIL import Image
 from flask import request, send_file, url_for, jsonify, send_from_directory
+from flask import current_app as app
 from werkzeug.utils import secure_filename
 from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.preprocessing import image
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential,load_model
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPooling2D
 from tensorflow.keras.optimizers import Adam
 from .model import ImageModel, db
@@ -14,6 +15,9 @@ from .view import render_template
 # Папка для хранения изображений
 UPLOAD_FOLDER = 'app/static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+# Папка для хранения модели
+MODEL_FOLDER = 'app/static/models'
 
 # Загружаем классы CIFAR-10
 class_names = [
@@ -29,6 +33,7 @@ def allowed_file(filename):
 
 def init_routes(app):
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+    app.config['MODEL_FOLDER'] = MODEL_FOLDER
 
     # Главная страница (View)
     @app.route('/')
@@ -144,21 +149,58 @@ def init_routes(app):
     def download_model():
         try:
             # Путь к файлу модели
-            model_path = os.path.abspath(os.path.join('app', 'static', 'models', 'cifar10_model.h5'))
+            model_path = os.path.abspath(os.path.join('app', 'static', 'models', 'cifar10_model.keras'))
 
             # Проверяем, существует ли файл модели
             if not os.path.exists(model_path):
-                return jsonify(success=False, error="Модель не найдена.")
+                return jsonify(success=False, error="Model not found.")
 
             # Отправляем файл пользователю для скачивания с помощью send_file
-            return send_file(model_path, as_attachment=True, download_name='cifar10_model.h5')
+            return send_file(model_path, as_attachment=True, download_name='cifar10_model.keras')
 
         except Exception as e:
             app.logger.error(f"Ошибка при скачивании модели: {str(e)}")
             return jsonify(success=False, error="Произошла ошибка при скачивании модели.")
 
+    @app.route('/classify_images', methods=['POST'])
+    def classify_images():
+        try:
+            print("Запуск классификации изображений...")
+
+            # Загружаем модель
+            model = load_model('app/static/models/cifar10_model.keras')  # Убедитесь, что модель существует по пути
+
+            print("Модель загружена. Классификация начнется.")
+
+            # Загрузка изображений из базы данных
+            image_data, _ = load_images_from_db()
+
+            print(f"Загружено {len(image_data)} изображений.")
+
+            # Выполнение классификации
+            predictions = model.predict(image_data)
+
+            print("Классификация завершена.")
+
+            # Обновление меток в базе данных
+            images = ImageModel.query.all()
+            for i, image in enumerate(images):
+                predicted_label = class_names[np.argmax(predictions[i])]
+                image.predicted_label = predicted_label
+
+            db.session.commit()
+
+            print("База данных обновлена с результатами классификации.")
+
+            return jsonify({"success": True, "message": "Классификация завершена и база данных обновлена."})
+
+        except Exception as e:
+            print(f"Ошибка при классификации изображений: {str(e)}")
+            return jsonify({"success": False, "error": "Произошла ошибка при классификации изображений."})
+
 
 def load_images_from_db():
+
     # Извлекаем все изображения из базы данных
     images = ImageModel.query.all()
 
@@ -168,22 +210,25 @@ def load_images_from_db():
 
     # Загружаем каждое изображение и добавляем его в список
     for img in images:
-        # Получаем полный путь к изображению
         img_path = os.path.join(os.getcwd(), 'app', 'static', img.image_path.split('/')[-1])
 
-        # Открываем изображение
-        img_array = image.load_img(img_path, target_size=(32, 32))  # CIFAR-10 имеет размер 32x32
-        img_array = image.img_to_array(img_array) / 255.0  # Нормализуем пиксели в диапазон [0, 1]
+        if not os.path.exists(img_path):
+            print(f"Изображение {img_path} не найдено. Пропускаем.")
+            continue  # Пропускаем, если файл не существует
+
+        img_array = image.load_img(img_path, target_size=(32, 32))
+        img_array = image.img_to_array(img_array) / 255.0
 
         # Преобразуем строковую метку в числовую
-        if img.actual_label.isdigit():  # Если метка числовая
-            label_index = int(img.actual_label)  # Используем её как индекс
+        if img.actual_label.isdigit():
+            label_index = int(img.actual_label)
         else:
-            label_index = class_names.index(img.actual_label)  # Ищем строковую метку в class_names
+            label_index = class_names.index(img.actual_label)
 
         image_data.append(img_array)
         labels.append(label_index)
 
+    print(f"Загружено {len(image_data)} изображений.")
     return np.array(image_data), np.array(labels)
 
 
@@ -209,7 +254,19 @@ def train_model(image_data, labels):
     os.makedirs(os.path.join('app', 'static', 'models'), exist_ok=True)
 
     # Сохраняем модель
-    model_path = os.path.join('app', 'static', 'models', 'cifar10_model.h5')
+    model_path = os.path.join('app', 'static', 'models', 'cifar10_model.keras')
     model.save(model_path)
 
     return model_path  # Возвращаем путь к модели
+
+
+def clear_image_database():
+    try:
+        # Удаляем все записи из таблицы, если они есть
+        app.logger.info("Очищаем базу данных изображений.")
+        ImageModel.query.delete()
+        db.session.commit()
+        app.logger.info("База данных изображений очищена.")
+    except Exception as e:
+        app.logger.error(f"Ошибка при очистке базы данных: {str(e)}")
+        db.session.rollback()

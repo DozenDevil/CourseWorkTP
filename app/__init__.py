@@ -7,6 +7,7 @@ def create_app():
 
     # Настройки
     app.config['UPLOAD_FOLDER'] = 'static/uploads'
+    app.config['MODEL_FOLDER'] = 'static/models'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

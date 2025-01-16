@@ -17,6 +17,9 @@
     <!-- Кнопка для скачивания модели, всегда видна -->
     <button id="download-btn">Скачать модель</button>
 
+    <h1>Классификация</h1>
+
+    <button id="classify-btn">Классифицировать изображения</button>
 
     <h1>Загрузите изображения</h1>
 
@@ -164,8 +167,6 @@
 
             if (data.success) {
                 alert(data.message);
-                // Уведомляем пользователя, что модель готова к скачиванию
-                alert("Модель готова к скачиванию. Нажмите на кнопку ниже, чтобы скачать.");
             } else {
                 alert('Произошла ошибка при обучении модели.');
             }
@@ -181,6 +182,36 @@
         // Запрос на скачивание модели
         window.location.href = '/download_model';  // Перенаправление на путь скачивания
     });
+
+    // Классификация изображений
+    document.getElementById('classify-btn').addEventListener('click', function () {
+        console.log("Отправка запроса на классификацию...");
+
+        fetch('/classify_images', {
+            method: 'POST',
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Ошибка HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                console.log("Классификация завершена успешно.");
+                alert(data.message);
+                location.reload();  // Обновляем страницу после успешной классификации
+            } else {
+                console.log("Ошибка: " + data.error);
+                alert(`Ошибка: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка при отправке запроса:', error);
+            alert('Ошибка при классификации изображений. Подробности в консоли.');
+        });
+    });
+
     </script>
 </body>
 </html>
