@@ -37,9 +37,36 @@ class ModelMetadata(db.Model):
     number_of_classes = db.Column(db.Integer, nullable=False)
     creation_date = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Для хранения состояния
+    _mementos = []
+
     def __repr__(self):
         return f"<ModelMetadata(model_name={self.model_name}, model_version={self.model_version})>"
 
+    # Сохраняем текущее состояние объекта
+    def save_state(self):
+        memento = ModelMetadataMemento(self.model_name, self.model_version, self.number_of_images, self.number_of_classes, self.creation_date)
+        self._mementos.append(memento)
+
+    # Восстанавливаем состояние из снимка
+    def restore_state(self):
+        if not self._mementos:
+            raise Exception("Нет сохранённых состояний")
+        memento = self._mementos.pop()
+        self.model_name = memento.model_name
+        self.model_version = memento.model_version
+        self.number_of_images = memento.number_of_images
+        self.number_of_classes = memento.number_of_classes
+        self.creation_date = memento.creation_date
+
+# Снимок
+class ModelMetadataMemento:
+    def __init__(self, model_name, model_version, number_of_images, number_of_classes, creation_date):
+        self.model_name = model_name
+        self.model_version = model_version
+        self.number_of_images = number_of_images
+        self.number_of_classes = number_of_classes
+        self.creation_date = creation_date
 
 class ExportStrategy(ABC):
 
