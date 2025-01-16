@@ -6,6 +6,10 @@
     <title>CourseWorkTP</title>
 </head>
 <body>
+    <h1>Обучение модели</h1>
+    <!-- Кнопка для обучения модели -->
+    <button id="train-model-btn">Обучить модель</button>
+
     <h1>Загрузите изображения</h1>
 
     <!-- Кнопка для загрузки CIFAR-10 -->
@@ -133,6 +137,30 @@
             .catch(error => {
                 document.getElementById('loading-msg').style.display = 'none';
                 alert('Ошибка при загрузке изображений.');
+            });
+        });
+
+        // Обучение модели
+        document.getElementById('train-model-btn').addEventListener('click', function() {
+
+            // Отправляем запрос на сервер через AJAX
+            fetch('/train_model', {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+
+                if (data.success) {
+                    alert(data.message);
+                    // Добавляем ссылку на скачивание модели
+                    window.location.href = data.download_url;  // Перенаправляем пользователя для скачивания модели
+                } else {
+                    alert('Произошла ошибка при обучении модели.');
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading-msg').style.display = 'none';
+                alert('Ошибка при обучении модели.');
             });
         });
     </script>
