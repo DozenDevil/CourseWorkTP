@@ -3,3 +3,4 @@ werkzeug
 tensorflow
 numpy
 pillow
+pytest
