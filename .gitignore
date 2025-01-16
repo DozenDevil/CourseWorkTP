@@ -1,4 +1,4 @@
-app/static/uploads
+app/static/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
