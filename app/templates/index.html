@@ -37,6 +37,15 @@
         Загрузка изображений...
     </div>
 
+    <h1>Экспорт метаданных</h1>
+    <!-- Кнопки для экспорта -->
+    <button id="export-csv-btn">Экспортировать в CSV</button>
+    <button id="export-json-btn">Экспортировать в JSON</button>
+
+    <!-- Сообщение об успехе или ошибке -->
+    <div id="export-message"></div>
+
+
     <h2>Все изображения</h2>
     <table border="1">
         <thead>
@@ -212,6 +221,44 @@
         });
     });
 
+
+    // Обработчик для экспорта в CSV
+        document.getElementById('export-csv-btn').addEventListener('click', function() {
+            exportData('csv');
+        });
+
+        // Обработчик для экспорта в JSON
+        document.getElementById('export-json-btn').addEventListener('click', function() {
+            exportData('json');
+        });
+
+        // Функция для отправки запроса на сервер
+        function exportData(format) {
+            // Показываем сообщение о процессе
+            document.getElementById('export-message').innerText = 'Экспорт данных...';
+
+            // Отправляем запрос на сервер
+            fetch(`/export_metadata?format=${format}`, {
+                method: 'GET',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Успех, показываем сообщение с ссылкой на скачивание
+                    document.getElementById('export-message').innerHTML =
+                        `Экспорт выполнен успешно. <a href="${data.download_url}" download>Скачать файл</a>`;
+                } else {
+                    // Ошибка
+                    document.getElementById('export-message').innerText =
+                        'Произошла ошибка при экспорте данных.';
+                }
+            })
+            .catch(error => {
+                // Ошибка при запросе
+                document.getElementById('export-message').innerText =
+                    'Ошибка при отправке запроса на сервер.';
+            });
+        }
     </script>
 </body>
 </html>

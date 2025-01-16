@@ -4,12 +4,13 @@ from PIL import Image
 from flask import request, send_file, url_for, jsonify, send_from_directory
 from flask import current_app as app
 from werkzeug.utils import secure_filename
+import tempfile
 from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.preprocessing import image
 from tensorflow.keras.models import Sequential,load_model
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPooling2D
 from tensorflow.keras.optimizers import Adam
-from .model import ImageModel, db
+from .model import ImageModel, db, ModelMetadata, ExportStrategy, ExportToCSV, ExportToJSON
 from .view import render_template
 
 # Папка для хранения изображений
@@ -18,6 +19,9 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 # Папка для хранения модели
 MODEL_FOLDER = 'app/static/models'
+
+# Папка для сохранения экспортированных файлов
+EXPORT_FOLDER = os.path.join(os.getcwd(), 'app', 'static', 'exports')
 
 # Загружаем классы CIFAR-10
 class_names = [
@@ -31,9 +35,21 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+class ModelMetadataExporter:
+    def __init__(self, strategy: ExportStrategy):
+        self.strategy = strategy
+
+    def export(self, metadata):
+        return self.strategy.export(metadata)
+
+
 def init_routes(app):
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['MODEL_FOLDER'] = MODEL_FOLDER
+    app.config['EXPORT_FOLDER'] = EXPORT_FOLDER
+
+    if not os.path.exists(app.config['EXPORT_FOLDER']):
+        os.makedirs(app.config['EXPORT_FOLDER'])
 
     # Главная страница (View)
     @app.route('/')
@@ -198,6 +214,72 @@ def init_routes(app):
             print(f"Ошибка при классификации изображений: {str(e)}")
             return jsonify({"success": False, "error": "Произошла ошибка при классификации изображений."})
 
+    @app.route('/export_metadata', methods=['GET'])
+    def export_metadata():
+        try:
+            # Получаем формат из параметра запроса
+            format = request.args.get('format')
+
+            # Логируем, что получен формат запроса
+            print(f"Получен формат запроса: {format}")
+
+            if not format:
+                return jsonify({"success": False, "error": "Формат не указан"}), 400
+
+            # Загружаем метаданные модели
+            metadata = ModelMetadata.query.all()
+
+            # Логируем количество данных в базе
+            print(f"Количество метаданных в базе: {len(metadata)}")
+
+            if not metadata:
+                return jsonify({"success": False, "error": "Нет данных для экспорта"}), 400
+
+            # Получаем путь для экспорта из конфигурации приложения
+            export_folder = app.config['EXPORT_FOLDER']
+
+            # Выбираем соответствующую стратегию экспорта
+            if format == 'csv':
+                exporter = ExportToCSV()
+            elif format == 'json':
+                exporter = ExportToJSON()
+            else:
+                return jsonify({"success": False, "error": "Неподдерживаемый формат"}), 400
+
+            # Экспортируем данные, передавая путь для сохранения
+            filename = exporter.export(metadata, export_folder)
+
+            # Путь для скачивания файла
+            file_path = os.path.join(export_folder, filename)
+
+            # Проверяем, что файл существует
+            if not os.path.exists(file_path):
+                return jsonify({"success": False, "error": "Файл не найден для скачивания"}), 404
+
+            # Возвращаем успешный ответ с URL для скачивания
+            return jsonify({
+                "success": True,
+                "download_url": f"/download/{filename}"
+            })
+
+        except Exception as e:
+            print(f"Ошибка при экспорте данных: {str(e)}")  # Логируем ошибку
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @app.route('/download/<filename>')
+    def download_file(filename):
+        try:
+            # Путь к файлу
+            file_path = os.path.join(app.config['EXPORT_FOLDER'], filename)
+
+            # Проверяем, существует ли файл
+            if os.path.exists(file_path):
+                return send_file(file_path, as_attachment=True)
+
+            return jsonify({"success": False, "error": "Файл не найден"}), 404
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
 
 def load_images_from_db():
 
@@ -256,6 +338,18 @@ def train_model(image_data, labels):
     # Сохраняем модель
     model_path = os.path.join('app', 'static', 'models', 'cifar10_model.keras')
     model.save(model_path)
+
+    # Добавляем метаданные в базу данных
+    model_metadata = ModelMetadata(
+        model_name="CIFAR-10 Model",
+        model_version="1.0",
+        number_of_images=len(image_data),
+        number_of_classes=10,
+    )
+    db.session.add(model_metadata)
+    db.session.commit()
+
+    print("Модель и метаданные сохранены.")
 
     return model_path  # Возвращаем путь к модели
 
