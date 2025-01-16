@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from PIL import Image
-from flask import request, send_file, url_for, jsonify
+from flask import request, send_file, url_for, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.preprocessing import image
@@ -125,7 +125,7 @@ def init_routes(app):
             return jsonify(success=False, error=str(e))
 
     @app.route('/train_model', methods=['POST'])
-    def train_and_download_model():
+    def train_model_route():
         try:
             # Загружаем изображения из базы данных
             image_data, labels = load_images_from_db()
@@ -133,34 +133,29 @@ def init_routes(app):
             # Обучаем модель
             model_path = train_model(image_data, labels)
 
-            # После обучения, отправляем модель для скачивания
-            return jsonify(success=True, message="Модель обучена. Вы можете скачать её.",
-                           download_url=url_for('download_model'))
+            # Отправляем успешный ответ, без ссылки на скачивание
+            return jsonify(success=True, message="Модель обучена успешно. Теперь вы можете скачать модель.")
 
         except Exception as e:
-            # Логируем ошибку на сервере для дальнейшего анализа
             app.logger.error(f"Ошибка при обучении модели: {str(e)}")
-
-            # Возвращаем ошибку пользователю
             return jsonify(success=False, error=f"Произошла ошибка при обучении модели: {str(e)}")
 
     @app.route('/download_model', methods=['GET'])
     def download_model():
         try:
-            # Указываем путь к модели
-            model_path = os.path.join('app', 'static', 'models', 'cifar10_model.h5')
+            # Путь к файлу модели
+            model_path = os.path.abspath(os.path.join('app', 'static', 'models', 'cifar10_model.h5'))
 
-            # Проверяем, существует ли файл
+            # Проверяем, существует ли файл модели
             if not os.path.exists(model_path):
-                print(f"File not found: {model_path}")
-                return jsonify({"error": "Model file not found."}), 404
+                return jsonify(success=False, error="Модель не найдена.")
 
-            print(f"Serving file: {model_path}")
-            # Отправляем файл клиенту
-            return send_file(model_path, as_attachment=True)
+            # Отправляем файл пользователю для скачивания с помощью send_file
+            return send_file(model_path, as_attachment=True, download_name='cifar10_model.h5')
+
         except Exception as e:
-            print(f"Error occurred: {e}")
-            return jsonify({"error": str(e)}), 500
+            app.logger.error(f"Ошибка при скачивании модели: {str(e)}")
+            return jsonify(success=False, error="Произошла ошибка при скачивании модели.")
 
 
 def load_images_from_db():
@@ -209,9 +204,6 @@ def train_model(image_data, labels):
 
     # Обучаем модель
     model.fit(image_data, labels, epochs=10, batch_size=32)
-
-    # Сохраняем модель
-    model.save('cifar10_model.h5')
 
     # Убедитесь, что папка static/models существует
     os.makedirs(os.path.join('app', 'static', 'models'), exist_ok=True)

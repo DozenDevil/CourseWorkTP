@@ -10,6 +10,14 @@
     <!-- Кнопка для обучения модели -->
     <button id="train-model-btn">Обучить модель</button>
 
+    <!-- Блок загрузки -->
+    <div id="training-msg" style="display: none;">Обучение модели...</div>
+
+    <h2>Скачивание модели</h2>
+    <!-- Кнопка для скачивания модели, всегда видна -->
+    <button id="download-btn">Скачать модель</button>
+
+
     <h1>Загрузите изображения</h1>
 
     <!-- Кнопка для загрузки CIFAR-10 -->
@@ -142,27 +150,37 @@
 
         // Обучение модели
         document.getElementById('train-model-btn').addEventListener('click', function() {
+        // Показываем сообщение о процессе обучения
+        document.getElementById('training-msg').style.display = 'block';
 
-            // Отправляем запрос на сервер через AJAX
-            fetch('/train_model', {
-                method: 'POST',
-            })
-            .then(response => response.json())
-            .then(data => {
+        // Отправляем запрос на сервер через AJAX для обучения модели
+        fetch('/train_model', {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Скрываем сообщение о процессе обучения
+            document.getElementById('training-msg').style.display = 'none';
 
-                if (data.success) {
-                    alert(data.message);
-                    // Добавляем ссылку на скачивание модели
-                    window.location.href = data.download_url;  // Перенаправляем пользователя для скачивания модели
-                } else {
-                    alert('Произошла ошибка при обучении модели.');
-                }
-            })
-            .catch(error => {
-                document.getElementById('loading-msg').style.display = 'none';
-                alert('Ошибка при обучении модели.');
-            });
+            if (data.success) {
+                alert(data.message);
+                // Уведомляем пользователя, что модель готова к скачиванию
+                alert("Модель готова к скачиванию. Нажмите на кнопку ниже, чтобы скачать.");
+            } else {
+                alert('Произошла ошибка при обучении модели.');
+            }
+        })
+        .catch(error => {
+            document.getElementById('training-msg').style.display = 'none';
+            alert('Ошибка при обучении модели.');
         });
+    });
+
+    // Обработчик для скачивания модели
+    document.getElementById('download-btn').addEventListener('click', function() {
+        // Запрос на скачивание модели
+        window.location.href = '/download_model';  // Перенаправление на путь скачивания
+    });
     </script>
 </body>
 </html>
